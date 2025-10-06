@@ -5,19 +5,21 @@ import tensorflow as tf
 from sklearn.preprocessing import StandardScaler, LabelEncoder, OneHotEncoder
 import pickle
 
-model = tf.keras.models.load_model('model.h5')
+# Load model and encoders
+model = tf.keras.models.load_model('my_model.h5')
 
-with open('label_encoder_gender.pkl','rb') as file:
+with open('label_encoder_gender.pkl', 'rb') as file:
     label_encoder_gender = pickle.load(file)
-with open('label_encoder_geo.pkl', 'rb') as file:
+with open('onehot_encoder_geo.pkl', 'rb') as file:
     onehot_encoder_geo = pickle.load(file)
-with open('scaler.pkl','rb') as file:
+with open('scaler.pkl', 'rb') as file:
     scaler = pickle.load(file)
 
-# streamlit app
-st.title('Customer churn Predictor')
+# Streamlit app
+st.title('Customer Churn Predictor')
 
-geography = st.selectbox('Geography', categories_geo)
+# UI inputs
+geography = st.selectbox('Geography', onehot_encoder_geo.categories_[0])
 gender = st.selectbox('Gender', ['Male', 'Female'])
 age = st.slider('Age', 18, 100, 30)
 balance = st.number_input('Balance', min_value=0.0)
@@ -28,30 +30,40 @@ num_of_products = st.slider('Number of Products', 1, 4, 1)
 has_credit_card = st.selectbox('Has Credit Card', [0, 1])
 is_active_member = st.selectbox('Is Active Member', [0, 1])
 
-input_data = pd.dataframe({
+# Prepare input DataFrame
+input_data = pd.DataFrame({
     'CreditScore': [credit_score],
-    'Gender':[label_encoder_gender.transform([gender])[0]],
-    'Age':[age],
-    'Tenure':[tenure],
-    'Balance':[balance],
-    'NumOfProducts':[num_of_products], 
-    'HasCrCard':[has_credit_card],
-    'IsActiveMember':[is_active_member],
-    'EstimatedSalary':[estimated_salary]
+    'Gender': [label_encoder_gender.transform([gender])[0]],
+    'Age': [age],
+    'Tenure': [tenure],
+    'Balance': [balance],
+    'NumOfProducts': [num_of_products],
+    'HasCrCard': [has_credit_card],
+    'IsActiveMember': [is_active_member],
+    'EstimatedSalary': [estimated_salary]
 })
-# ONE HOT ENCODE 'gEOGRAPHY
-geo_encoded = onehot_encoder_geo.transform([[geography]]).to_array()
-geo_encoded_df = pd.Dataframe(geo_encoded, columns=onehot_encoder_geo.get_feature_names_out(['Geography']))
 
-input_data = pd.concat([input_data.reset_index(drop = True), geo_encoded_df], axis =1)
+# One-hot encode Geography
+geo_encoded = onehot_encoder_geo.transform([[geography]]).toarray()
+geo_encoded_df = pd.DataFrame(
+    geo_encoded,
+    columns=onehot_encoder_geo.get_feature_names_out(['Geography'])
+)
 
+# Combine features
+input_data = pd.concat([input_data.reset_index(drop=True), geo_encoded_df], axis=1)
+
+# Scale input data
 input_data_scaled = scaler.transform(input_data)
+
+# Predict churn probability
 prediction = model.predict(input_data_scaled)
 churn_prob = prediction[0][0]
 
-st.write(f'Churn probability: {churn_prob:.2f}')
+# Display results
+st.write(f'### Churn Probability: {churn_prob:.2f}')
 
 if churn_prob > 0.5:
-    print('Customer is likely to churn.')
+    st.error('Customer is **likely to churn**.')
 else:
-    print('Customer is unlikely to churn.')
+    st.success('Customer is **unlikely to churn**.')
